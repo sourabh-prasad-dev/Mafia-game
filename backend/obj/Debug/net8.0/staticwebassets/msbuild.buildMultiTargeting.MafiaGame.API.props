@@ -1,3 +1,0 @@
-﻿<Project>
-  <Import Project="..\build\MafiaGame.API.props" />
-</Project>

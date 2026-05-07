@@ -1,0 +1,24 @@
+## Build output
+bin/
+obj/
+
+## User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## VS
+.vs/
+
+## NuGet
+*.nupkg
+**/packages/*
+!**/packages/build/
+
+## Rider / JetBrains
+.idea/
+
+## OS
+.DS_Store
+Thumbs.db
