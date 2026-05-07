@@ -30,20 +30,24 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        var origins = new List<string>
-        {
-            "http://localhost:5173",
-            "http://localhost:3000",
-            "http://127.0.0.1:5173",
-            "http://10.92.21.147:5173",
-        };
-
-        // Add the deployed Vercel frontend URL when running in production
-        if (!string.IsNullOrEmpty(frontendUrl))
-            origins.Add(frontendUrl);
-
         policy
-            .WithOrigins(origins.ToArray())
+            .SetIsOriginAllowed(origin =>
+            {
+                if (string.IsNullOrEmpty(origin)) return false;
+                var host = new Uri(origin).Host;
+
+                // Local development
+                if (host == "localhost" || host == "127.0.0.1") return true;
+
+                // All Vercel preview + production deployments
+                if (host.EndsWith(".vercel.app")) return true;
+
+                // Explicit custom domain set via env variable
+                if (!string.IsNullOrEmpty(frontendUrl) &&
+                    origin.TrimEnd('/') == frontendUrl.TrimEnd('/')) return true;
+
+                return false;
+            })
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials(); // Required for SignalR

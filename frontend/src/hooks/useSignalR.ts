@@ -4,7 +4,7 @@ import { useGameStore } from '../store/gameStore'
 
 // In dev: VITE_BACKEND_URL is undefined → '/hubs/game' → Vite proxy handles it
 // In prod: VITE_BACKEND_URL = 'https://your-app.railway.app'
-const BACKEND = import.meta.env.VITE_BACKEND_URL ?? ''
+const BACKEND = (import.meta.env.VITE_BACKEND_URL ?? '').replace(/\/$/, '')
 const HUB_URL = `${BACKEND}/hubs/game`
 
 let connection: signalR.HubConnection | null = null

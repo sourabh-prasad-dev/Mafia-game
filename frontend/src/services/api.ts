@@ -2,7 +2,7 @@ import axios from 'axios'
 
 // In dev: VITE_API_URL is undefined → baseURL is '/api' → Vite proxy forwards to localhost:5000
 // In prod: VITE_API_URL is 'https://your-app.railway.app' → calls backend directly
-const BASE = import.meta.env.VITE_API_URL ?? ''
+const BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
 
 const api = axios.create({
   baseURL: `${BASE}/api`,
