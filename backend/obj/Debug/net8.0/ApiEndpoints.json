@@ -1,0 +1,66 @@
+[
+  {
+    "ContainingType": "MafiaGame.API.Controllers.RoomController",
+    "Method": "GetRoom",
+    "RelativePath": "api/Room/{code}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "code",
+        "Type": "System.String",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "MafiaGame.API.Controllers.RoomController",
+    "Method": "GetPlayers",
+    "RelativePath": "api/Room/{code}/players",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "code",
+        "Type": "System.String",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "MafiaGame.API.Controllers.RoomController",
+    "Method": "CreateRoom",
+    "RelativePath": "api/Room/create",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "req",
+        "Type": "MafiaGame.API.Controllers.CreateRoomRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "MafiaGame.API.Controllers.RoomController",
+    "Method": "JoinRoom",
+    "RelativePath": "api/Room/join",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "req",
+        "Type": "MafiaGame.API.Controllers.JoinRoomRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  }
+]
