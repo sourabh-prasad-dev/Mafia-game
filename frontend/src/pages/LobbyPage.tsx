@@ -31,6 +31,13 @@ export default function LobbyPage() {
     invoke('StartGame', roomCode)
   }
 
+  const handleLeave = () => {
+    useGameStore.getState().resetForNewGame()
+    // Clear persisted state entirely
+    localStorage.removeItem('mafia-game')
+    navigate('/')
+  }
+
   return (
     <div className="relative min-h-screen bg-night-bg flex flex-col items-center justify-center p-4">
       {/* Stars bg */}
@@ -56,6 +63,14 @@ export default function LobbyPage() {
           </div>
           <p className="text-slate-500 text-xs mt-2">Share this code with friends</p>
         </div>
+
+        {/* Leave room */}
+        <button
+          onClick={handleLeave}
+          className="absolute top-4 left-4 text-slate-500 hover:text-white text-sm flex items-center gap-1.5 transition-colors"
+        >
+          ← Leave Room
+        </button>
 
         {/* Player List */}
         <div className="bg-night-card border border-night-border rounded-2xl p-5 mb-6 shadow-xl">
