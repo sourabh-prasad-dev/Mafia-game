@@ -92,6 +92,7 @@ export interface GameState {
   setTimerSeconds: (s: number) => void
   setGameOver: (data: { winningFaction: string; allPlayers: Array<{ playerId: string; name: string; role: string; isAlive: boolean }> }) => void
   resetForNewGame: () => void
+  fullReset: () => void          // wipes everything including roomCode — used for Leave Room
   showEvent: (event: Omit<GameEvent, 'id'>) => void
   clearEvent: () => void
 }
@@ -192,6 +193,10 @@ export const useGameStore = create<GameState>()(
 
       showEvent: (event) => set((s) => {
         s.activeEvent = { ...event, id: Date.now().toString() }
+      }),
+
+      fullReset: () => set((s) => {
+        Object.assign(s, initialState)
       }),
 
       clearEvent: () => set((s) => { s.activeEvent = null }),

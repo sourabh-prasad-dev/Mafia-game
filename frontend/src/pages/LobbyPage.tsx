@@ -7,6 +7,7 @@ export default function LobbyPage() {
   const { roomCode, playerId, playerName, isHost, phase, players } = useGameStore()
   const { invoke } = useSignalR()
   const navigate = useNavigate()
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
 
   // Stable stars — in useState so positions don't regenerate on re-render
   const [stars] = useState(() =>
@@ -32,13 +33,13 @@ export default function LobbyPage() {
   }
 
   const handleLeave = () => {
-    useGameStore.getState().resetForNewGame()
-    // Clear persisted state entirely
-    localStorage.removeItem('mafia-game')
-    navigate('/')
+    useGameStore.getState().fullReset()        // clears roomCode → App.tsx stops redirecting
+    localStorage.removeItem('mafia-game')     // clear persisted state
+    navigate('/', { replace: true })
   }
 
   return (
+    <>
     <div className="relative min-h-screen bg-night-bg flex flex-col items-center justify-center p-4">
       {/* Stars bg */}
       <div className="stars-container opacity-40">
@@ -66,8 +67,8 @@ export default function LobbyPage() {
 
         {/* Leave room */}
         <button
-          onClick={handleLeave}
-          className="absolute top-4 left-4 text-slate-500 hover:text-white text-sm flex items-center gap-1.5 transition-colors"
+          onClick={() => setShowLeaveConfirm(true)}
+          className="absolute top-4 left-4 text-slate-500 hover:text-red-400 text-sm flex items-center gap-1.5 transition-colors"
         >
           ← Leave Room
         </button>
@@ -147,5 +148,35 @@ export default function LobbyPage() {
         </p>
       </div>
     </div>
+
+    {/* Leave Room Confirmation Dialog */}
+    {showLeaveConfirm && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+        <div className="bg-night-card border border-night-border rounded-2xl p-8 max-w-sm w-full mx-4 text-center shadow-2xl animate-float-up">
+          <div className="text-5xl mb-4">🚪</div>
+          <h2 className="text-xl font-display text-white mb-2">Leave Room?</h2>
+          <p className="text-slate-400 text-sm mb-6">
+            {isHost
+              ? 'You are the host. Leaving may disrupt the game for other players.'
+              : 'You will be removed from the room and cannot rejoin.'}
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowLeaveConfirm(false)}
+              className="flex-1 py-3 rounded-xl border border-night-border text-slate-300 hover:bg-night-surface transition-colors text-sm font-semibold"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleLeave}
+              className="flex-1 py-3 rounded-xl bg-red-700 hover:bg-red-600 text-white transition-colors text-sm font-semibold"
+            >
+              Yes, Leave
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }

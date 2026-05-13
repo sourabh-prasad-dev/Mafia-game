@@ -26,10 +26,11 @@ function AppInner() {
     }
   }, []) // intentionally only on mount
 
-  // Keep URL in sync with game phase
+  // Keep URL in sync with game phase — only when inside a room
   useEffect(() => {
+    if (!roomCode) return          // ← don't redirect when leaving
     navigate(getPhaseRoute(phase), { replace: true })
-  }, [phase])
+  }, [phase, roomCode])
 
   if (!roomCode) {
     return <Routes>
