@@ -1,16 +1,33 @@
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useGameStore } from '../store/gameStore'
 import { useSignalR } from '../hooks/useSignalR'
 
 export default function GameOverPage() {
   const { winningFaction, allPlayersReveal, roomCode, isHost } = useGameStore()
   const { invoke } = useSignalR()
+  const navigate = useNavigate()
 
   const mafia = allPlayersReveal.filter(p => p.role === 'Mafia')
   const town = allPlayersReveal.filter(p => p.role !== 'Mafia')
   const mafiaWon = winningFaction === 'Mafia'
 
+  // Stable stars
+  const [stars] = useState(() =>
+    Array.from({ length: 60 }, (_, i) => ({
+      id: i, x: Math.random() * 100, y: Math.random() * 100,
+      size: Math.random() * 2 + 1, duration: Math.random() * 3 + 2, delay: Math.random() * 3,
+    }))
+  )
+
   const handlePlayAgain = () => {
     invoke('PlayAgain', roomCode)
+  }
+
+  const handleGoHome = () => {
+    useGameStore.getState().fullReset()
+    localStorage.removeItem('mafia-game')
+    navigate('/', { replace: true })
   }
 
   return (
@@ -20,11 +37,11 @@ export default function GameOverPage() {
       {/* Background stars (mafia) or sun (town) */}
       {mafiaWon ? (
         <div className="stars-container opacity-40">
-          {Array.from({ length: 60 }, (_, i) => (
-            <span key={i} className="star" style={{
-              left: `${Math.random() * 100}%`, top: `${Math.random() * 100}%`,
-              width: `${Math.random() * 2 + 1}px`, height: `${Math.random() * 2 + 1}px`,
-              '--duration': `${Math.random() * 3 + 2}s`, '--delay': `${Math.random() * 3}s`,
+          {stars.map(s => (
+            <span key={s.id} className="star" style={{
+              left: `${s.x}%`, top: `${s.y}%`,
+              width: `${s.size}px`, height: `${s.size}px`,
+              '--duration': `${s.duration}s`, '--delay': `${s.delay}s`,
             } as React.CSSProperties} />
           ))}
         </div>
@@ -84,24 +101,38 @@ export default function GameOverPage() {
           </div>
         </div>
 
-        {/* Play again */}
-        {isHost ? (
+        {/* Action buttons */}
+        <div className="space-y-3">
+          {isHost ? (
+            <button
+              id="playAgainBtn"
+              onClick={handlePlayAgain}
+              className={`w-full font-bold py-4 rounded-xl text-lg transition-all duration-200 shadow-lg hover:scale-[1.02] ${
+                mafiaWon
+                  ? 'bg-gradient-to-r from-red-800 to-red-600 hover:from-red-700 hover:to-red-500 text-white glow-red'
+                  : 'bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-amber-900 glow-gold'
+              }`}
+            >
+              🔄 Play Again
+            </button>
+          ) : (
+            <div className={`text-center text-sm py-3 ${mafiaWon ? 'text-red-400' : 'text-amber-600'}`}>
+              ⏳ Waiting for host to start a new game...
+            </div>
+          )}
+
+          {/* Leave / Home button — always visible */}
           <button
-            id="playAgainBtn"
-            onClick={handlePlayAgain}
-            className={`w-full font-bold py-4 rounded-xl text-lg transition-all duration-200 shadow-lg hover:scale-[1.02] ${
+            onClick={handleGoHome}
+            className={`w-full py-3 rounded-xl text-sm font-semibold border transition-all duration-200 ${
               mafiaWon
-                ? 'bg-gradient-to-r from-red-800 to-red-600 hover:from-red-700 hover:to-red-500 text-white glow-red'
-                : 'bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-amber-900 glow-gold'
+                ? 'border-red-800/40 text-red-400 hover:bg-red-950/40'
+                : 'border-amber-300 text-amber-700 hover:bg-amber-50'
             }`}
           >
-            🔄 Play Again
+            🏠 Leave Game
           </button>
-        ) : (
-          <div className={`text-center text-sm py-3 ${mafiaWon ? 'text-red-400' : 'text-amber-600'}`}>
-            ⏳ Waiting for host to start a new game...
-          </div>
-        )}
+        </div>
       </div>
     </div>
   )

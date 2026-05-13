@@ -20,7 +20,7 @@ export function useSignalR() {
 
     const conn = new signalR.HubConnectionBuilder()
       .withUrl(HUB_URL)
-      .withAutomaticReconnect()
+      .withAutomaticReconnect([0, 1000, 2000, 5000, 10000]) // retry schedule
       .configureLogging(signalR.LogLevel.Warning)
       .build()
 
@@ -44,10 +44,58 @@ export function useSignalR() {
       )
     })
 
-    conn.on('RoomStateSync', (data: { phase: string; players: Array<{ playerId: string; name: string; isAlive: boolean; isHost: boolean }>; round: number }) => {
-      // Called on reconnect — syncs current room state
+    conn.on('RoomStateSync', (data: {
+      phase: string;
+      players: Array<{ playerId: string; name: string; isAlive: boolean; isHost: boolean }>;
+      round: number;
+      yourRole?: string;
+      mafiaTeammates?: Array<{ playerId: string; name: string }> | null;
+      hasSubmittedNightAction?: boolean;
+      hasSubmittedDayVote?: boolean;
+      myDayVote?: string | null;
+      dayVoteCounts?: Record<string, number>;
+      voterToTarget?: Record<string, string>;
+      votedPlayerIds?: string[];
+    }) => {
       const store = useGameStore.getState()
-      store.setPhase(data.phase as import('../store/gameStore').GamePhase, data.players, data.round)
+      const phase = data.phase as import('../store/gameStore').GamePhase
+
+      // Update phase + players
+      store.setPhase(phase, data.players, data.round)
+
+      // Restore role info (important after mid-game refresh)
+      if (data.yourRole && data.yourRole !== 'Citizen') {
+        store.setGameStarted({
+          yourRole: data.yourRole,
+          mafiaTeammates: data.mafiaTeammates ?? null,
+          playerId: store.playerId
+        })
+      } else if (data.yourRole) {
+        store.setGameStarted({
+          yourRole: data.yourRole,
+          mafiaTeammates: null,
+          playerId: store.playerId
+        })
+      }
+
+      // Restore host flag from server data
+      const me = data.players.find(p => p.playerId === store.playerId)
+      if (me && me.isHost !== store.isHost) {
+        store.setIdentity({
+          roomCode: store.roomCode,
+          playerId: store.playerId,
+          playerName: store.playerName,
+          isHost: me.isHost
+        })
+      }
+
+      // Restore vote state
+      if (data.dayVoteCounts && data.voterToTarget && data.votedPlayerIds) {
+        store.updateDayVoteCounts(data.dayVoteCounts, data.votedPlayerIds, data.voterToTarget)
+      }
+      if (data.hasSubmittedDayVote && data.myDayVote) {
+        store.setMyDayVote(data.myDayVote)
+      }
     })
 
     conn.on('GameStarted', (data: { yourRole: string; mafiaTeammates: Array<{ playerId: string; name: string }> | null; playerId: string }) => {
@@ -89,9 +137,6 @@ export function useSignalR() {
           message: 'Vote to eliminate a player you suspect is Mafia. Most votes wins.',
           accent: 'gold'
         })
-      }
-      if (phase === 'GameOver') {
-        // GameOver popup handled by GameOver event below
       }
     })
 
@@ -182,6 +227,18 @@ export function useSignalR() {
 
     conn.on('Error', (msg: string) => {
       console.error('[GameHub Error]', msg)
+    })
+
+    // ── Auto-reconnect: re-register with server when SignalR reconnects ──
+    conn.onreconnected(async () => {
+      const store = useGameStore.getState()
+      if (store.roomCode && store.playerId) {
+        try {
+          await conn.invoke('RegisterPlayer', store.roomCode, store.playerId)
+        } catch (e) {
+          console.error('[SignalR] Failed to re-register after reconnect', e)
+        }
+      }
     })
 
     await conn.start()

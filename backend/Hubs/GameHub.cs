@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.SignalR;
 using MafiaGame.API.Models;
 using MafiaGame.API.Services;
 using MafiaGame.API.DTOs;
+using System.Collections.Concurrent;
 
 namespace MafiaGame.API.Hubs;
 
@@ -13,6 +14,9 @@ public class GameHub : Hub
     private readonly DayVoteService _dayVoteService;
     private readonly GameStateService _gameStateService;
     private readonly IHubContext<GameHub> _hubContext;
+
+    // Grace period: tracks pending disconnects so a refresh doesn't kill the player
+    private static readonly ConcurrentDictionary<string, CancellationTokenSource> _disconnectTimers = new();
 
     public GameHub(
         RoomService roomService,
@@ -43,18 +47,52 @@ public class GameHub : Hub
         if (room != null)
         {
             var player = _roomService.GetPlayerByConnectionId(room, Context.ConnectionId);
-            if (player != null && room.Phase == GamePhase.Lobby)
+            if (player != null)
             {
-                _roomService.RemovePlayer(Context.ConnectionId);
-                await Groups.RemoveFromGroupAsync(Context.ConnectionId, room.RoomCode);
-                await _hubContext.Clients.Group(room.RoomCode).SendAsync("PlayerLeft", new
+                var playerId = player.PlayerId;
+                var roomCode = room.RoomCode;
+
+                // Start a grace period — if the player reconnects within 8s, cancel the removal
+                var cts = new CancellationTokenSource();
+                _disconnectTimers[playerId] = cts;
+
+                _ = Task.Run(async () =>
                 {
-                    playerName = player.Name,
-                    playerCount = room.Players.Count,
-                    players = room.Players.Select(p => new { p.PlayerId, p.Name, p.IsHost })
+                    try
+                    {
+                        await Task.Delay(8000, cts.Token);
+
+                        // Grace period expired — player is truly gone
+                        _disconnectTimers.TryRemove(playerId, out _);
+
+                        if (room.Phase == GamePhase.Lobby)
+                        {
+                            var (removed, roomEmpty) = _roomService.RemovePlayerFromLobby(Context.ConnectionId);
+                            if (removed != null && !roomEmpty)
+                            {
+                                await _hubContext.Clients.Group(roomCode).SendAsync("PlayerLeft", new
+                                {
+                                    playerName = removed.Name,
+                                    playerCount = room.Players.Count,
+                                    players = room.Players.Select(p => new { p.PlayerId, p.Name, p.IsHost })
+                                });
+                            }
+                            else if (roomEmpty)
+                            {
+                                // Room already deleted by RoomService
+                            }
+                        }
+                        // During in-game phases, do NOT remove the player — they stay in the roster
+                    }
+                    catch (TaskCanceledException)
+                    {
+                        // Player reconnected within the grace period — do nothing
+                    }
                 });
             }
         }
+
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, "");
         await base.OnDisconnectedAsync(exception);
     }
 
@@ -70,22 +108,52 @@ public class GameHub : Hub
         var player = room.Players.FirstOrDefault(p => p.PlayerId == playerId);
         if (player == null) { await Clients.Caller.SendAsync("Error", "Player not found"); return; }
 
+        // Cancel any pending disconnect timer — the player is back
+        if (_disconnectTimers.TryRemove(playerId, out var cts))
+        {
+            cts.Cancel();
+        }
+
+        var isReconnect = player.ConnectionId != "pending" && player.ConnectionId != Context.ConnectionId;
+
+        // Update the connection ID to the new one
         player.ConnectionId = Context.ConnectionId;
         await Groups.AddToGroupAsync(Context.ConnectionId, roomCode);
 
-        await _hubContext.Clients.Group(roomCode).SendAsync("PlayerJoined", new
+        // Only broadcast PlayerJoined for genuinely new joins, not reconnects
+        if (!isReconnect)
         {
-            playerName = player.Name,
-            playerCount = room.Players.Count,
-            players = room.Players.Select(p => new { p.PlayerId, p.Name, p.IsHost })
-        });
+            await _hubContext.Clients.Group(roomCode).SendAsync("PlayerJoined", new
+            {
+                playerName = player.Name,
+                playerCount = room.Players.Count,
+                players = room.Players.Select(p => new { p.PlayerId, p.Name, p.IsHost })
+            });
+        }
 
-        // Send caller the current room state so they can sync after a refresh
+        // Send caller the full room state so they can sync after a refresh
+        var mafiaTeammates = player.Role == PlayerRole.Mafia
+            ? room.Players.Where(p => p.Role == PlayerRole.Mafia && p.PlayerId != playerId)
+                .Select(p => new { p.PlayerId, p.Name })
+                .ToList()
+            : null;
+
         await Clients.Caller.SendAsync("RoomStateSync", new
         {
             phase = room.Phase.ToString(),
             players = room.Players.Select(p => new { p.PlayerId, p.Name, p.IsAlive, p.IsHost }),
-            round = room.RoundNumber
+            round = room.RoundNumber,
+            // These allow the client to restore game state after refresh
+            yourRole = player.Role.ToString(),
+            mafiaTeammates,
+            hasSubmittedNightAction = player.HasSubmittedAction && (room.Phase == GamePhase.Night),
+            hasSubmittedDayVote = room.DayVotes.ContainsKey(playerId),
+            myDayVote = room.DayVotes.TryGetValue(playerId, out var dv) ? dv : null,
+            dayVoteCounts = room.DayVotes
+                .GroupBy(kv => kv.Value)
+                .ToDictionary(g => g.Key, g => g.Count()),
+            voterToTarget = room.DayVotes,
+            votedPlayerIds = room.DayVotes.Keys.ToList(),
         });
     }
 
@@ -242,12 +310,11 @@ public class GameHub : Hub
             .GroupBy(kv => kv.Value)
             .ToDictionary(g => g.Key, g => g.Count());
 
-        // Broadcast full voter→target mapping so UI shows who voted for whom
         await _hubContext.Clients.Group(roomCode).SendAsync("VoteCountUpdated", new
         {
             voteCounts,
             votedPlayerIds = room.DayVotes.Keys.ToList(),
-            voterToTarget = room.DayVotes   // ← full public mapping
+            voterToTarget = room.DayVotes
         });
 
         if (_gameStateService.AllLivingPlayersVoted(room))
@@ -272,7 +339,6 @@ public class GameHub : Hub
             return;
         }
 
-        // Cancel the discussion timer and open voting phase
         room.TimerCts?.Cancel();
         room.Phase = GamePhase.DayVote;
         foreach (var p in room.Players)
@@ -347,7 +413,6 @@ public class GameHub : Hub
                 if (sec == 0) break;
                 await Task.Delay(1000, cts.Token);
             }
-            // Timer expires but does NOT auto-advance — host must click Proceed to Vote
         }
         catch (TaskCanceledException) { }
     }
@@ -382,7 +447,6 @@ public class GameHub : Hub
 
         var (result, winningFaction) = _nightService.Resolve(room);
 
-        // ⚠️ Role intentionally omitted — revealed only at GameOver
         await _hubContext.Clients.Group(room.RoomCode).SendAsync("NightResolved", new
         {
             killedPlayer = result.KilledPlayer == null ? null : new
@@ -426,7 +490,6 @@ public class GameHub : Hub
 
         var (result, winningFaction) = _dayVoteService.TallyVotes(room);
 
-        // ⚠️ Role intentionally omitted — revealed only at GameOver
         await _hubContext.Clients.Group(room.RoomCode).SendAsync("DayVoteResult", new
         {
             eliminatedPlayer = result.EliminatedPlayer == null ? null : new
@@ -446,7 +509,6 @@ public class GameHub : Hub
             return;
         }
 
-        // Next night (includes tied-vote case)
         await Task.Delay(4000);
         room.Phase = GamePhase.Night;
 

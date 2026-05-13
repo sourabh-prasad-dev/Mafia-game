@@ -50,8 +50,15 @@ public class RoomService
     public Room? GetRoomByConnectionId(string connectionId) =>
         _rooms.Values.FirstOrDefault(r => r.Players.Any(p => p.ConnectionId == connectionId));
 
+    /// <summary>Find a room by playerId (needed for reconnect where connectionId has changed).</summary>
+    public Room? GetRoomByPlayerId(string playerId) =>
+        _rooms.Values.FirstOrDefault(r => r.Players.Any(p => p.PlayerId == playerId));
+
     public Player? GetPlayerByConnectionId(Room room, string connectionId) =>
         room.Players.FirstOrDefault(p => p.ConnectionId == connectionId);
+
+    public Player? GetPlayerByPlayerId(Room room, string playerId) =>
+        room.Players.FirstOrDefault(p => p.PlayerId == playerId);
 
     public void UpdateConnectionId(string oldConnectionId, string newConnectionId)
     {
@@ -61,18 +68,55 @@ public class RoomService
         if (player != null) player.ConnectionId = newConnectionId;
     }
 
-    public Player? RemovePlayer(string connectionId)
+    /// <summary>Remove a player from the lobby. Returns (removedPlayer, isRoomNowEmpty).</summary>
+    public (Player? player, bool roomEmpty) RemovePlayerFromLobby(string connectionId)
     {
         var room = GetRoomByConnectionId(connectionId);
-        if (room == null) return null;
+        if (room == null) return (null, false);
         var player = room.Players.FirstOrDefault(p => p.ConnectionId == connectionId);
-        if (player == null) return null;
+        if (player == null) return (null, false);
 
-        // In lobby, actually remove; in-game, just mark disconnected (keep IsAlive)
         if (room.Phase == GamePhase.Lobby)
+        {
             room.Players.Remove(player);
 
-        return player;
+            // If a host left and there are still players, promote the first one
+            if (player.IsHost && room.Players.Count > 0)
+            {
+                room.Players[0].IsHost = true;
+            }
+
+            if (room.Players.Count == 0)
+            {
+                DeleteRoom(room.RoomCode);
+                return (player, true);
+            }
+        }
+
+        return (player, false);
+    }
+
+    /// <summary>Delete a room and cancel its timers.</summary>
+    public void DeleteRoom(string roomCode)
+    {
+        roomCode = roomCode.ToUpper();
+        if (_rooms.TryRemove(roomCode, out var room))
+        {
+            room.TimerCts?.Cancel();
+        }
+    }
+
+    /// <summary>Check if a room has zero connected players and delete it.</summary>
+    public bool TryCleanupEmptyRoom(string roomCode)
+    {
+        roomCode = roomCode.ToUpper();
+        if (!_rooms.TryGetValue(roomCode, out var room)) return false;
+        if (room.Players.Count == 0)
+        {
+            DeleteRoom(roomCode);
+            return true;
+        }
+        return false;
     }
 
     public void ResetRoomForReplay(Room room)

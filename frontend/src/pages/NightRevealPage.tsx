@@ -1,10 +1,18 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useGameStore } from '../store/gameStore'
 
 export default function NightRevealPage() {
   const { nightResult, phase } = useGameStore()
   const navigate = useNavigate()
+
+  // Stable stars
+  const [stars] = useState(() =>
+    Array.from({ length: 60 }, (_, i) => ({
+      id: i, x: Math.random() * 100, y: Math.random() * 100,
+      size: Math.random() * 2 + 1, duration: Math.random() * 3 + 2, delay: Math.random() * 3,
+    }))
+  )
 
   // Auto-advance handled by server PhaseChanged event
   useEffect(() => {
@@ -22,11 +30,11 @@ export default function NightRevealPage() {
 
       {/* Stars dimmed */}
       <div className="stars-container opacity-30">
-        {Array.from({ length: 60 }, (_, i) => (
-          <span key={i} className="star" style={{
-            left: `${Math.random() * 100}%`, top: `${Math.random() * 100}%`,
-            width: `${Math.random() * 2 + 1}px`, height: `${Math.random() * 2 + 1}px`,
-            '--duration': `${Math.random() * 3 + 2}s`, '--delay': `${Math.random() * 3}s`,
+        {stars.map(s => (
+          <span key={s.id} className="star" style={{
+            left: `${s.x}%`, top: `${s.y}%`,
+            width: `${s.size}px`, height: `${s.size}px`,
+            '--duration': `${s.duration}s`, '--delay': `${s.delay}s`,
           } as React.CSSProperties} />
         ))}
       </div>
