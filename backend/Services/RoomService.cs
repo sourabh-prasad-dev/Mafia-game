@@ -96,6 +96,47 @@ public class RoomService
         return (player, false);
     }
 
+    /// <summary>
+    /// Remove a player by their stable PlayerId. Only removes if their current ConnectionId
+    /// matches expectedConnectionId — this prevents removing a player who already reconnected
+    /// with a new ConnectionId during the grace period.
+    /// </summary>
+    public (Player? player, bool roomEmpty, string? roomCode) RemovePlayerByPlayerId(
+        string playerId, string expectedConnectionId)
+    {
+        var room = GetRoomByPlayerId(playerId);
+        if (room == null) return (null, false, null);
+
+        var player = room.Players.FirstOrDefault(p => p.PlayerId == playerId);
+        if (player == null) return (null, false, null);
+
+        // If the ConnectionId has changed, the player already reconnected — don't remove
+        if (player.ConnectionId != expectedConnectionId)
+            return (null, false, null);
+
+        var roomCode = room.RoomCode;
+
+        if (room.Phase == GamePhase.Lobby)
+        {
+            room.Players.Remove(player);
+
+            if (player.IsHost && room.Players.Count > 0)
+            {
+                room.Players[0].IsHost = true;
+            }
+
+            if (room.Players.Count == 0)
+            {
+                DeleteRoom(roomCode);
+                return (player, true, roomCode);
+            }
+
+            return (player, false, roomCode);
+        }
+
+        return (null, false, roomCode);
+    }
+
     /// <summary>Delete a room and cancel its timers.</summary>
     public void DeleteRoom(string roomCode)
     {

@@ -43,14 +43,21 @@ public class GameHub : Hub
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        var room = _roomService.GetRoomByConnectionId(Context.ConnectionId);
+        // Capture all values BEFORE the hub instance is disposed (hub is transient)
+        var connectionId = Context.ConnectionId;
+        var room = _roomService.GetRoomByConnectionId(connectionId);
+
         if (room != null)
         {
-            var player = _roomService.GetPlayerByConnectionId(room, Context.ConnectionId);
+            var player = _roomService.GetPlayerByConnectionId(room, connectionId);
             if (player != null)
             {
+                // Snapshot values — these are stable strings, safe to use in the delayed task
                 var playerId = player.PlayerId;
                 var roomCode = room.RoomCode;
+
+                // Remove from SignalR group immediately (the old connection is dead)
+                await Groups.RemoveFromGroupAsync(connectionId, roomCode);
 
                 // Start a grace period — if the player reconnects within 8s, cancel the removal
                 var cts = new CancellationTokenSource();
@@ -62,27 +69,27 @@ public class GameHub : Hub
                     {
                         await Task.Delay(8000, cts.Token);
 
-                        // Grace period expired — player is truly gone
+                        // Grace period expired — player hasn't reconnected
                         _disconnectTimers.TryRemove(playerId, out _);
 
-                        if (room.Phase == GamePhase.Lobby)
+                        // Use playerId-based removal with stale-connection guard:
+                        // If the player's ConnectionId changed (they reconnected), skip the removal.
+                        var (removed, roomEmpty, _) = _roomService.RemovePlayerByPlayerId(playerId, connectionId);
+
+                        if (removed != null && !roomEmpty)
                         {
-                            var (removed, roomEmpty) = _roomService.RemovePlayerFromLobby(Context.ConnectionId);
-                            if (removed != null && !roomEmpty)
+                            // Re-fetch room to get updated player list
+                            var updatedRoom = _roomService.GetRoomByCode(roomCode);
+                            if (updatedRoom != null)
                             {
                                 await _hubContext.Clients.Group(roomCode).SendAsync("PlayerLeft", new
                                 {
                                     playerName = removed.Name,
-                                    playerCount = room.Players.Count,
-                                    players = room.Players.Select(p => new { p.PlayerId, p.Name, p.IsHost })
+                                    playerCount = updatedRoom.Players.Count,
+                                    players = updatedRoom.Players.Select(p => new { p.PlayerId, p.Name, p.IsHost })
                                 });
                             }
-                            else if (roomEmpty)
-                            {
-                                // Room already deleted by RoomService
-                            }
                         }
-                        // During in-game phases, do NOT remove the player — they stay in the roster
                     }
                     catch (TaskCanceledException)
                     {
@@ -90,9 +97,13 @@ public class GameHub : Hub
                     }
                 });
             }
+            else
+            {
+                // Player not found by connectionId — just clean up the group
+                await Groups.RemoveFromGroupAsync(connectionId, room.RoomCode);
+            }
         }
 
-        await Groups.RemoveFromGroupAsync(Context.ConnectionId, "");
         await base.OnDisconnectedAsync(exception);
     }
 
