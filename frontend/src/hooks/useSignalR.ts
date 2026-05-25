@@ -33,6 +33,17 @@ export function useSignalR() {
         data.players.map(p => ({ ...p, isAlive: true })),
         store.round
       )
+
+      // Sync player's own isHost flag from server data
+      const me = data.players.find(p => p.playerId === store.playerId)
+      if (me && me.isHost !== store.isHost) {
+        store.setIdentity({
+          roomCode: store.roomCode,
+          playerId: store.playerId,
+          playerName: store.playerName,
+          isHost: me.isHost
+        })
+      }
     })
 
     conn.on('PlayerLeft', (data: { playerName: string; playerCount: number; players: Array<{ playerId: string; name: string; isHost: boolean }> }) => {
@@ -42,6 +53,17 @@ export function useSignalR() {
         data.players.map(p => ({ ...p, isAlive: true })),
         store.round
       )
+
+      // Sync player's own isHost flag from server data
+      const me = data.players.find(p => p.playerId === store.playerId)
+      if (me && me.isHost !== store.isHost) {
+        store.setIdentity({
+          roomCode: store.roomCode,
+          playerId: store.playerId,
+          playerName: store.playerName,
+          isHost: me.isHost
+        })
+      }
     })
 
     conn.on('RoomStateSync', (data: {
@@ -223,6 +245,17 @@ export function useSignalR() {
       store.resetForNewGame()
       const mapped = data.players.map(p => ({ ...p, isAlive: true }))
       store.setPhase('Lobby', mapped, 0)
+
+      // Sync player's own isHost flag from server data after reset
+      const me = data.players.find(p => p.playerId === store.playerId)
+      if (me && me.isHost !== store.isHost) {
+        store.setIdentity({
+          roomCode: store.roomCode,
+          playerId: store.playerId,
+          playerName: store.playerName,
+          isHost: me.isHost
+        })
+      }
     })
 
     conn.on('Error', (msg: string) => {

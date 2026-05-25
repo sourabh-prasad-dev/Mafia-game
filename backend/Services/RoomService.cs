@@ -80,10 +80,11 @@ public class RoomService
         {
             room.Players.Remove(player);
 
-            // If a host left and there are still players, promote the first one
+            // If a host left and there are still players, promote one randomly
             if (player.IsHost && room.Players.Count > 0)
             {
-                room.Players[0].IsHost = true;
+                var randomIndex = _random.Next(room.Players.Count);
+                room.Players[randomIndex].IsHost = true;
             }
 
             if (room.Players.Count == 0)
@@ -122,7 +123,8 @@ public class RoomService
 
             if (player.IsHost && room.Players.Count > 0)
             {
-                room.Players[0].IsHost = true;
+                var randomIndex = _random.Next(room.Players.Count);
+                room.Players[randomIndex].IsHost = true;
             }
 
             if (room.Players.Count == 0)
