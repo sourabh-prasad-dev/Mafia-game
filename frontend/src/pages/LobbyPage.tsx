@@ -56,6 +56,16 @@ export default function LobbyPage() {
       </div>
 
       <div className="relative z-10 w-full max-w-lg animate-fade-in">
+        {/* Leave room */}
+        <div className="mb-4 text-left px-1">
+          <button
+            onClick={() => setShowLeaveConfirm(true)}
+            className="text-slate-500 hover:text-red-400 text-sm flex items-center gap-1.5 transition-colors"
+          >
+            ← Leave Room
+          </button>
+        </div>
+
         {/* Room Code display */}
         <div className="text-center mb-8">
           <p className="text-slate-400 text-xs uppercase tracking-widest mb-2">Room Code</p>
@@ -64,14 +74,6 @@ export default function LobbyPage() {
           </div>
           <p className="text-slate-500 text-xs mt-2">Share this code with friends</p>
         </div>
-
-        {/* Leave room */}
-        <button
-          onClick={() => setShowLeaveConfirm(true)}
-          className="absolute top-4 left-4 text-slate-500 hover:text-red-400 text-sm flex items-center gap-1.5 transition-colors"
-        >
-          ← Leave Room
-        </button>
 
         {/* Player List */}
         <div className="bg-night-card border border-night-border rounded-2xl p-5 mb-6 shadow-xl">

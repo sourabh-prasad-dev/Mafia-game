@@ -48,16 +48,16 @@ export default function EventModal() {
         <div className="mt-6 h-1 bg-slate-800 rounded-full overflow-hidden">
           <div
             className="h-full bg-slate-500 rounded-full"
-            style={{ animation: 'shrink 4.5s linear forwards' }}
+            style={{ animation: 'grow 4.5s linear forwards' }}
           />
         </div>
         <p className="text-slate-600 text-xs mt-2">Tap anywhere to dismiss</p>
       </div>
 
       <style>{`
-        @keyframes shrink {
-          from { width: 100%; }
-          to   { width: 0%; }
+        @keyframes grow {
+          from { width: 0%; }
+          to   { width: 100%; }
         }
       `}</style>
     </div>
