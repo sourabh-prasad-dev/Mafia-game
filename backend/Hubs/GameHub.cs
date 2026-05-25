@@ -56,12 +56,12 @@ public class GameHub : Hub
                 var playerId = player.PlayerId;
                 var roomCode = room.RoomCode;
 
-                // Remove from SignalR group immediately (the old connection is dead)
-                await Groups.RemoveFromGroupAsync(connectionId, roomCode);
-
                 // Start a grace period — if the player reconnects within 8s, cancel the removal
                 var cts = new CancellationTokenSource();
                 _disconnectTimers[playerId] = cts;
+
+                // Remove from SignalR group immediately (the old connection is dead)
+                await Groups.RemoveFromGroupAsync(connectionId, roomCode);
 
                 _ = Task.Run(async () =>
                 {
@@ -166,6 +166,43 @@ public class GameHub : Hub
             voterToTarget = room.DayVotes,
             votedPlayerIds = room.DayVotes.Keys.ToList(),
         });
+    }
+
+    public async Task LeaveRoom(string roomCode)
+    {
+        roomCode = roomCode.ToUpper();
+        var room = _roomService.GetRoomByCode(roomCode);
+        if (room == null) return;
+
+        var player = _roomService.GetPlayerByConnectionId(room, Context.ConnectionId);
+        if (player == null) return;
+
+        var playerId = player.PlayerId;
+
+        // Cancel any pending disconnect timer — the player is leaving explicitly
+        if (_disconnectTimers.TryRemove(playerId, out var cts))
+        {
+            cts.Cancel();
+        }
+
+        var (removed, roomEmpty, _) = _roomService.RemovePlayerByPlayerId(playerId, Context.ConnectionId);
+
+        if (removed != null && !roomEmpty)
+        {
+            // Re-fetch room to get updated player list
+            var updatedRoom = _roomService.GetRoomByCode(roomCode);
+            if (updatedRoom != null)
+            {
+                await _hubContext.Clients.Group(roomCode).SendAsync("PlayerLeft", new
+                {
+                    playerName = removed.Name,
+                    playerCount = updatedRoom.Players.Count,
+                    players = updatedRoom.Players.Select(p => new { p.PlayerId, p.Name, p.IsHost })
+                });
+            }
+        }
+
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, roomCode);
     }
 
     // ─── Start Game ──────────────────────────────────────────────────────────

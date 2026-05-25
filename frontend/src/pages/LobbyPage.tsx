@@ -32,7 +32,12 @@ export default function LobbyPage() {
     invoke('StartGame', roomCode)
   }
 
-  const handleLeave = () => {
+  const handleLeave = async () => {
+    try {
+      await invoke('LeaveRoom', roomCode)
+    } catch (e) {
+      console.error(e)
+    }
     useGameStore.getState().fullReset()        // clears roomCode → App.tsx stops redirecting
     localStorage.removeItem('mafia-game')     // clear persisted state
     navigate('/', { replace: true })

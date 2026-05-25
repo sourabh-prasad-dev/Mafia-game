@@ -76,7 +76,7 @@ public class RoomService
         var player = room.Players.FirstOrDefault(p => p.ConnectionId == connectionId);
         if (player == null) return (null, false);
 
-        if (room.Phase == GamePhase.Lobby)
+        if (room.Phase == GamePhase.Lobby || room.Phase == GamePhase.GameOver)
         {
             room.Players.Remove(player);
 
@@ -117,7 +117,7 @@ public class RoomService
 
         var roomCode = room.RoomCode;
 
-        if (room.Phase == GamePhase.Lobby)
+        if (room.Phase == GamePhase.Lobby || room.Phase == GamePhase.GameOver)
         {
             room.Players.Remove(player);
 

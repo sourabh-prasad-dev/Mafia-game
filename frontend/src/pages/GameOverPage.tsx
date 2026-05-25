@@ -24,7 +24,12 @@ export default function GameOverPage() {
     invoke('PlayAgain', roomCode)
   }
 
-  const handleGoHome = () => {
+  const handleGoHome = async () => {
+    try {
+      await invoke('LeaveRoom', roomCode)
+    } catch (e) {
+      console.error(e)
+    }
     useGameStore.getState().fullReset()
     localStorage.removeItem('mafia-game')
     navigate('/', { replace: true })
