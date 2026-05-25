@@ -262,6 +262,15 @@ export function useSignalR() {
       console.error('[GameHub Error]', msg)
     })
 
+    // Fired when RegisterPlayer is called but the player was already purged after the grace period.
+    // The client should clear state and redirect home so they don't get stuck on a dead lobby.
+    conn.on('KickedFromRoom', () => {
+      useGameStore.getState().fullReset()
+      localStorage.removeItem('mafia-game')
+      // Navigate to home — use window.location so it works outside React Router context
+      window.location.href = '/'
+    })
+
     // ── Auto-reconnect: re-register with server when SignalR reconnects ──
     conn.onreconnected(async () => {
       const store = useGameStore.getState()

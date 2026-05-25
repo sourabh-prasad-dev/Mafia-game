@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useGameStore } from '../store/gameStore'
 import { useSignalR } from '../hooks/useSignalR'
+import { leaveRoom } from '../services/api'
 
 export default function LobbyPage() {
   const { roomCode, playerId, playerName, isHost, phase, players } = useGameStore()
@@ -34,9 +35,9 @@ export default function LobbyPage() {
 
   const handleLeave = async () => {
     try {
-      await invoke('LeaveRoom', roomCode)
+      await leaveRoom(roomCode, playerId)
     } catch (e) {
-      console.error(e)
+      console.error('[LeaveRoom] REST call failed', e)
     }
     useGameStore.getState().fullReset()        // clears roomCode → App.tsx stops redirecting
     localStorage.removeItem('mafia-game')     // clear persisted state

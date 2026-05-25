@@ -117,7 +117,13 @@ public class GameHub : Hub
         if (room == null) { await Clients.Caller.SendAsync("Error", "Room not found"); return; }
 
         var player = room.Players.FirstOrDefault(p => p.PlayerId == playerId);
-        if (player == null) { await Clients.Caller.SendAsync("Error", "Player not found"); return; }
+        if (player == null)
+        {
+            // Player was purged (grace period expired before reconnect succeeded).
+            // Tell the client to clear state and go home instead of sitting on a dead lobby.
+            await Clients.Caller.SendAsync("KickedFromRoom");
+            return;
+        }
 
         // Cancel any pending disconnect timer — the player is back
         if (_disconnectTimers.TryRemove(playerId, out var cts))

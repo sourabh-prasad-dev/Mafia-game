@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using MafiaGame.API.Services;
 using MafiaGame.API.Models;
+using MafiaGame.API.Hubs;
 
 namespace MafiaGame.API.Controllers;
 
@@ -9,10 +11,12 @@ namespace MafiaGame.API.Controllers;
 public class RoomController : ControllerBase
 {
     private readonly RoomService _roomService;
+    private readonly IHubContext<GameHub> _hubContext;
 
-    public RoomController(RoomService roomService)
+    public RoomController(RoomService roomService, IHubContext<GameHub> hubContext)
     {
         _roomService = roomService;
+        _hubContext = hubContext;
     }
 
     [HttpPost("create")]
@@ -77,6 +81,47 @@ public class RoomController : ControllerBase
 
         return Ok(room.Players.Select(p => new { p.PlayerId, p.Name, p.IsAlive, p.IsHost }));
     }
+
+    /// <summary>
+    /// Called by the frontend when a player explicitly leaves the lobby.
+    /// Updates server state and broadcasts PlayerLeft via SignalR so all clients update immediately.
+    /// </summary>
+    [HttpPost("{code}/leave")]
+    public async Task<IActionResult> LeaveRoom(string code, [FromBody] LeaveRoomRequest req)
+    {
+        code = code.ToUpper();
+        if (string.IsNullOrWhiteSpace(req.PlayerId))
+            return BadRequest(new { error = "PlayerId is required" });
+
+        var room = _roomService.GetRoomByCode(code);
+        if (room == null) return NotFound(new { error = "Room not found" });
+
+        var player = room.Players.FirstOrDefault(p => p.PlayerId == req.PlayerId);
+        if (player == null) return NotFound(new { error = "Player not found" });
+
+        var playerName = player.Name;
+        _roomService.RemovePlayerByPlayerId(req.PlayerId, player.ConnectionId);
+
+        var updatedRoom = _roomService.GetRoomByCode(code);
+        if (updatedRoom == null)
+        {
+            return Ok(new { roomDeleted = true, players = Array.Empty<object>() });
+        }
+
+        // Broadcast to all remaining players so they see the updated list + new host immediately
+        await _hubContext.Clients.Group(code).SendAsync("PlayerLeft", new
+        {
+            playerName,
+            playerCount = updatedRoom.Players.Count,
+            players = updatedRoom.Players.Select(p => new { p.PlayerId, p.Name, p.IsHost })
+        });
+
+        return Ok(new
+        {
+            roomDeleted = false,
+            players = updatedRoom.Players.Select(p => new { p.PlayerId, p.Name, p.IsHost })
+        });
+    }
 }
 
 public class CreateRoomRequest
@@ -88,4 +133,9 @@ public class JoinRoomRequest
 {
     public string RoomCode { get; set; } = string.Empty;
     public string PlayerName { get; set; } = string.Empty;
+}
+
+public class LeaveRoomRequest
+{
+    public string PlayerId { get; set; } = string.Empty;
 }

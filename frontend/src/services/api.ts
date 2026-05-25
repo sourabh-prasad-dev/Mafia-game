@@ -38,3 +38,7 @@ export const getRoom = async (code: string) => {
   const res = await api.get(`/room/${code}`)
   return res.data
 }
+
+export const leaveRoom = async (roomCode: string, playerId: string): Promise<void> => {
+  await api.post(`/room/${roomCode}/leave`, { playerId })
+}

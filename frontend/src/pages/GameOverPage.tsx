@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useGameStore } from '../store/gameStore'
 import { useSignalR } from '../hooks/useSignalR'
+import { leaveRoom } from '../services/api'
 
 export default function GameOverPage() {
-  const { winningFaction, allPlayersReveal, roomCode, isHost } = useGameStore()
+  const { winningFaction, allPlayersReveal, roomCode, isHost, playerId } = useGameStore()
   const { invoke } = useSignalR()
   const navigate = useNavigate()
 
@@ -26,9 +27,9 @@ export default function GameOverPage() {
 
   const handleGoHome = async () => {
     try {
-      await invoke('LeaveRoom', roomCode)
+      await leaveRoom(roomCode, playerId)
     } catch (e) {
-      console.error(e)
+      console.error('[LeaveRoom] REST call failed', e)
     }
     useGameStore.getState().fullReset()
     localStorage.removeItem('mafia-game')
