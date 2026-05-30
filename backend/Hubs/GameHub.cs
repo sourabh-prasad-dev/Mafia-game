@@ -145,16 +145,15 @@ public class GameHub : Hub
         player.ConnectionId = Context.ConnectionId;
         await Groups.AddToGroupAsync(Context.ConnectionId, roomCode);
 
-        // Only broadcast PlayerJoined for genuinely new joins, not reconnects
-        if (!isReconnect)
+        // Always broadcast the current player list to the group.
+        // On first join: other players see the new player appear.
+        // On reconnect: other players resync their list (guarantees no stale state).
+        await _hubContext.Clients.Group(roomCode).SendAsync("PlayerJoined", new
         {
-            await _hubContext.Clients.Group(roomCode).SendAsync("PlayerJoined", new
-            {
-                playerName = player.Name,
-                playerCount = room.Players.Count,
-                players = room.Players.Select(p => new { p.PlayerId, p.Name, p.IsHost })
-            });
-        }
+            playerName = player.Name,
+            playerCount = room.Players.Count,
+            players = room.Players.Select(p => new { p.PlayerId, p.Name, p.IsHost })
+        });
 
         // Send caller the full room state so they can sync after a refresh
         var mafiaTeammates = player.Role == PlayerRole.Mafia
