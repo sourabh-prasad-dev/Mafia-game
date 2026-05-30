@@ -98,7 +98,7 @@ public class GameHub : Hub
                                 {
                                     playerName = removed.Name,
                                     playerCount = updatedRoom.Players.Count,
-                                    players = updatedRoom.Players.Select(p => new { p.PlayerId, p.Name, p.IsHost })
+                                    players = updatedRoom.Players.Select(p => new { p.PlayerId, p.Name, p.IsHost, p.IsAlive })
                                 });
                             }
                         }
@@ -152,7 +152,7 @@ public class GameHub : Hub
         {
             playerName = player.Name,
             playerCount = room.Players.Count,
-            players = room.Players.Select(p => new { p.PlayerId, p.Name, p.IsHost })
+            players = room.Players.Select(p => new { p.PlayerId, p.Name, p.IsHost, p.IsAlive })
         });
 
         // Send caller the full room state so they can sync after a refresh
@@ -210,7 +210,7 @@ public class GameHub : Hub
                 {
                     playerName = removed.Name,
                     playerCount = updatedRoom.Players.Count,
-                    players = updatedRoom.Players.Select(p => new { p.PlayerId, p.Name, p.IsHost })
+                    players = updatedRoom.Players.Select(p => new { p.PlayerId, p.Name, p.IsHost, p.IsAlive })
                 });
             }
         }

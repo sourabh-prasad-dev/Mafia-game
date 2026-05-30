@@ -119,13 +119,13 @@ public class RoomController : ControllerBase
         {
             playerName,
             playerCount = updatedRoom.Players.Count,
-            players = updatedRoom.Players.Select(p => new { p.PlayerId, p.Name, p.IsHost })
+            players = updatedRoom.Players.Select(p => new { p.PlayerId, p.Name, p.IsHost, p.IsAlive })
         });
 
         return Ok(new
         {
             roomDeleted = false,
-            players = updatedRoom.Players.Select(p => new { p.PlayerId, p.Name, p.IsHost })
+            players = updatedRoom.Players.Select(p => new { p.PlayerId, p.Name, p.IsHost, p.IsAlive })
         });
     }
 }

@@ -26,11 +26,11 @@ export function useSignalR() {
 
     // ── Event handlers ──────────────────────────────────────────────────────
 
-    conn.on('PlayerJoined', (data: { playerName: string; playerCount: number; players: Array<{ playerId: string; name: string; isHost: boolean }> }) => {
+    conn.on('PlayerJoined', (data: { playerName: string; playerCount: number; players: Array<{ playerId: string; name: string; isHost: boolean; isAlive: boolean }> }) => {
       const store = useGameStore.getState()
       store.setPhase(
         store.phase,
-        data.players.map(p => ({ ...p, isAlive: true })),
+        data.players,
         store.round
       )
 
@@ -46,11 +46,11 @@ export function useSignalR() {
       }
     })
 
-    conn.on('PlayerLeft', (data: { playerName: string; playerCount: number; players: Array<{ playerId: string; name: string; isHost: boolean }> }) => {
+    conn.on('PlayerLeft', (data: { playerName: string; playerCount: number; players: Array<{ playerId: string; name: string; isHost: boolean; isAlive: boolean }> }) => {
       const store = useGameStore.getState()
       store.setPhase(
         store.phase,
-        data.players.map(p => ({ ...p, isAlive: true })),
+        data.players,
         store.round
       )
 
