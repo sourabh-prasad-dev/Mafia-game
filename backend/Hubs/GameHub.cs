@@ -18,6 +18,13 @@ public class GameHub : Hub
     // Grace period: tracks pending disconnects so a refresh doesn't kill the player
     private static readonly ConcurrentDictionary<string, CancellationTokenSource> _disconnectTimers = new();
 
+    /// <summary>Cancel a pending disconnect timer for a player. Called by REST controller on explicit leave.</summary>
+    public static void CancelDisconnectTimer(string playerId)
+    {
+        if (_disconnectTimers.TryRemove(playerId, out var cts))
+            cts.Cancel();
+    }
+
     public GameHub(
         RoomService roomService,
         RoleAssignmentService roleService,
@@ -43,42 +50,47 @@ public class GameHub : Hub
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        // Capture all values BEFORE the hub instance is disposed (hub is transient)
+        // Capture values before hub is disposed (hub instances are transient)
         var connectionId = Context.ConnectionId;
         var room = _roomService.GetRoomByConnectionId(connectionId);
 
         if (room != null)
         {
             var player = _roomService.GetPlayerByConnectionId(room, connectionId);
-            if (player != null)
-            {
-                // Snapshot values — these are stable strings, safe to use in the delayed task
-                var playerId = player.PlayerId;
-                var roomCode = room.RoomCode;
+            var roomCode = room.RoomCode;
 
-                // Start a grace period — if the player reconnects within 8s, cancel the removal
+            // Remove the dead connection from the SignalR group immediately
+            await Groups.RemoveFromGroupAsync(connectionId, roomCode);
+
+            if (player != null && room.Phase == GamePhase.Lobby)
+            {
+                var playerId = player.PlayerId;
+
+                // Cancel any existing timer for this player (e.g. double-disconnect)
+                if (_disconnectTimers.TryRemove(playerId, out var oldCts))
+                    oldCts.Cancel();
+
+                // Start a long safety-net timer (60s) for truly closed tabs.
+                // If the player reconnects (via RegisterPlayer), this timer is cancelled.
+                // If it fires, it double-checks that the connectionId is still the OLD one
+                // (meaning no reconnect happened) before removing.
                 var cts = new CancellationTokenSource();
                 _disconnectTimers[playerId] = cts;
-
-                // Remove from SignalR group immediately (the old connection is dead)
-                await Groups.RemoveFromGroupAsync(connectionId, roomCode);
 
                 _ = Task.Run(async () =>
                 {
                     try
                     {
-                        await Task.Delay(8000, cts.Token);
+                        await Task.Delay(60_000, cts.Token);
 
-                        // Grace period expired — player hasn't reconnected
+                        // 60 seconds passed — player truly left
                         _disconnectTimers.TryRemove(playerId, out _);
 
-                        // Use playerId-based removal with stale-connection guard:
-                        // If the player's ConnectionId changed (they reconnected), skip the removal.
+                        // Safety: only remove if their connectionId is still the old one
                         var (removed, roomEmpty, _) = _roomService.RemovePlayerByPlayerId(playerId, connectionId);
 
                         if (removed != null && !roomEmpty)
                         {
-                            // Re-fetch room to get updated player list
                             var updatedRoom = _roomService.GetRoomByCode(roomCode);
                             if (updatedRoom != null)
                             {
@@ -93,15 +105,11 @@ public class GameHub : Hub
                     }
                     catch (TaskCanceledException)
                     {
-                        // Player reconnected within the grace period — do nothing
+                        // Player reconnected — timer was cancelled by RegisterPlayer
                     }
                 });
             }
-            else
-            {
-                // Player not found by connectionId — just clean up the group
-                await Groups.RemoveFromGroupAsync(connectionId, room.RoomCode);
-            }
+            // During in-game phases (Night, Day, etc.), never remove. Player stays in roster.
         }
 
         await base.OnDisconnectedAsync(exception);

@@ -82,10 +82,10 @@ public class RoomController : ControllerBase
         return Ok(room.Players.Select(p => new { p.PlayerId, p.Name, p.IsAlive, p.IsHost }));
     }
 
-    /// <summary>
+    /// &lt;summary&gt;
     /// Called by the frontend when a player explicitly leaves the lobby.
     /// Updates server state and broadcasts PlayerLeft via SignalR so all clients update immediately.
-    /// </summary>
+    /// &lt;/summary&gt;
     [HttpPost("{code}/leave")]
     public async Task<IActionResult> LeaveRoom(string code, [FromBody] LeaveRoomRequest req)
     {
@@ -100,7 +100,13 @@ public class RoomController : ControllerBase
         if (player == null) return NotFound(new { error = "Player not found" });
 
         var playerName = player.Name;
-        _roomService.RemovePlayerByPlayerId(req.PlayerId, player.ConnectionId);
+        var playerConnectionId = player.ConnectionId; // use the player's actual connectionId
+
+        // Cancel any pending disconnect timer for this player
+        GameHub.CancelDisconnectTimer(req.PlayerId);
+
+        // Remove using the player's own connectionId (not the HTTP caller's)
+        _roomService.RemovePlayerByPlayerId(req.PlayerId, playerConnectionId);
 
         var updatedRoom = _roomService.GetRoomByCode(code);
         if (updatedRoom == null)
