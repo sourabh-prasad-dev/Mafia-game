@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useGameStore } from '../store/gameStore'
 import { useSignalR } from '../hooks/useSignalR'
+import { leaveRoom } from '../services/api'
 import CountdownTimer from '../components/CountdownTimer'
 import MafiaActionPanel from '../components/ActionPanel/MafiaActionPanel'
 import DoctorActionPanel from '../components/ActionPanel/DoctorActionPanel'
@@ -10,9 +11,10 @@ import CitizenActionPanel from '../components/ActionPanel/CitizenActionPanel'
 import PlayerList from '../components/PlayerList'
 
 export default function NightPage() {
-  const { role, phase, players, playerId, round, mafiaTeammates, mafiaVotes, roomCode, hasSubmittedNightAction } = useGameStore()
+  const { role, phase, players, playerId, round, mafiaTeammates, mafiaVotes, roomCode, hasSubmittedNightAction, isHost } = useGameStore()
   const { invoke } = useSignalR()
   const navigate = useNavigate()
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
   const [stars] = useState(() =>
     Array.from({ length: 120 }, (_, i) => ({
       id: i, x: Math.random() * 100, y: Math.random() * 100,
@@ -35,10 +37,21 @@ export default function NightPage() {
     useGameStore.getState().setNightActionSubmitted()
   }
 
+  const handleLeave = async () => {
+    try {
+      await leaveRoom(roomCode, playerId)
+    } catch (e) {
+      console.error('[LeaveRoom] REST call failed', e)
+    }
+    useGameStore.getState().fullReset()
+    localStorage.removeItem('mafia-game')
+    navigate('/', { replace: true })
+  }
+
   const mafiaTeammateIds = new Set(mafiaTeammates.map(m => m.playerId))
 
   return (
-    <div className="relative min-h-screen bg-night-bg overflow-hidden flex flex-col">
+    <div className="relative min-h-screen bg-night-bg overflow-hidden flex flex-col p-4">
       {/* Stars */}
       <div className="stars-container">
         {stars.map(s => (
@@ -52,6 +65,16 @@ export default function NightPage() {
 
       {/* Moon */}
       <div className="absolute top-6 right-8 text-5xl opacity-80 animate-pulse">🌙</div>
+
+      {/* Leave Game */}
+      <div className="relative z-20 text-left mb-2 self-start px-4">
+        <button
+          onClick={() => setShowLeaveConfirm(true)}
+          className="text-slate-500 hover:text-red-400 text-sm flex items-center gap-1.5 transition-colors"
+        >
+          ← Leave Game
+        </button>
+      </div>
 
       {/* Header */}
       <div className="relative z-10 text-center pt-8 pb-4 px-4">
@@ -151,6 +174,35 @@ export default function NightPage() {
         {/* Player list */}
         <PlayerList players={alivePlayers} currentPlayerId={playerId} compact />
       </div>
+
+      {/* Leave Room Confirmation Dialog */}
+      {showLeaveConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-night-card border border-night-border rounded-2xl p-8 max-w-sm w-full mx-4 text-center shadow-2xl animate-float-up">
+            <div className="text-5xl mb-4">🚪</div>
+            <h2 className="text-xl font-display text-white mb-2">Leave Game?</h2>
+            <p className="text-slate-400 text-sm mb-6">
+              {isHost
+                ? 'You are the host. Leaving may disrupt the game for other players.'
+                : 'You will leave the game and return to the main lobby.'}
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowLeaveConfirm(false)}
+                className="flex-1 py-3 rounded-xl border border-night-border text-slate-300 hover:bg-night-surface transition-colors text-sm font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleLeave}
+                className="flex-1 py-3 rounded-xl bg-red-700 hover:bg-red-600 text-white transition-colors text-sm font-semibold"
+              >
+                Yes, Leave
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

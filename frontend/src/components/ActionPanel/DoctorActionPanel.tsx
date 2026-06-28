@@ -23,7 +23,8 @@ export default function DoctorActionPanel({ alivePlayers, onSubmit, submitted }:
         id="doctorTarget"
         value={selected}
         onChange={e => setSelected(e.target.value)}
-        className="w-full bg-green-950/80 border border-green-700/50 text-white rounded-xl px-4 py-3 text-sm mb-4 focus:outline-none focus:border-green-500 appearance-none"
+        disabled={submitted}
+        className="w-full bg-green-950/80 border border-green-700/50 text-white rounded-xl px-4 py-3 text-sm mb-4 focus:outline-none focus:border-green-500 appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <option value="">— Select player to protect —</option>
         {alivePlayers.map(p => (

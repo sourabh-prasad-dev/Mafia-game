@@ -1,7 +1,8 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useGameStore } from '../store/gameStore'
 import { useSignalR } from '../hooks/useSignalR'
+import { leaveRoom } from '../services/api'
 import CountdownTimer from '../components/CountdownTimer'
 import VotingPanel from '../components/VotingPanel'
 import PlayerList from '../components/PlayerList'
@@ -13,6 +14,18 @@ export default function DayPage() {
   } = useGameStore()
   const { invoke } = useSignalR()
   const navigate = useNavigate()
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
+
+  const handleLeave = async () => {
+    try {
+      await leaveRoom(roomCode, playerId)
+    } catch (e) {
+      console.error('[LeaveRoom] REST call failed', e)
+    }
+    useGameStore.getState().fullReset()
+    localStorage.removeItem('mafia-game')
+    navigate('/', { replace: true })
+  }
 
   useEffect(() => {
     if (phase === 'Night') navigate('/night')
@@ -35,7 +48,17 @@ export default function DayPage() {
   }
 
   return (
-    <div className="relative min-h-screen day-sky overflow-hidden flex flex-col">
+    <div className="relative min-h-screen day-sky overflow-hidden flex flex-col p-4">
+      {/* Leave button */}
+      <div className="relative z-20 text-left mb-2 self-start px-4">
+        <button
+          onClick={() => setShowLeaveConfirm(true)}
+          className="text-amber-800 hover:text-red-700 text-sm flex items-center gap-1.5 transition-colors font-medium"
+        >
+          ← Leave Game
+        </button>
+      </div>
+
       {/* Sun */}
       <div className="absolute top-4 right-6 text-5xl drop-shadow-lg">☀️</div>
 
@@ -131,6 +154,35 @@ export default function DayPage() {
           </div>
         )}
       </div>
+
+      {/* Leave Room Confirmation Dialog */}
+      {showLeaveConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-white border border-amber-200 rounded-2xl p-8 max-w-sm w-full mx-4 text-center shadow-2xl animate-float-up">
+            <div className="text-5xl mb-4">🚪</div>
+            <h2 className="text-xl font-display text-amber-900 mb-2">Leave Game?</h2>
+            <p className="text-amber-700 text-sm mb-6">
+              {isHost
+                ? 'You are the host. Leaving may disrupt the game for other players.'
+                : 'You will leave the game and return to the main lobby.'}
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowLeaveConfirm(false)}
+                className="flex-1 py-3 rounded-xl border border-amber-200 text-amber-800 hover:bg-amber-50 transition-colors text-sm font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleLeave}
+                className="flex-1 py-3 rounded-xl bg-red-700 hover:bg-red-600 text-white transition-colors text-sm font-semibold"
+              >
+                Yes, Leave
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

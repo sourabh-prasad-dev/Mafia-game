@@ -1,10 +1,23 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useGameStore } from '../store/gameStore'
+import { leaveRoom } from '../services/api'
 
 export default function NightRevealPage() {
-  const { nightResult, phase } = useGameStore()
+  const { nightResult, phase, isHost, roomCode, playerId } = useGameStore()
   const navigate = useNavigate()
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false)
+
+  const handleLeave = async () => {
+    try {
+      await leaveRoom(roomCode, playerId)
+    } catch (e) {
+      console.error('[LeaveRoom] REST call failed', e)
+    }
+    useGameStore.getState().fullReset()
+    localStorage.removeItem('mafia-game')
+    navigate('/', { replace: true })
+  }
 
   // Stable stars
   const [stars] = useState(() =>
@@ -25,6 +38,16 @@ export default function NightRevealPage() {
 
   return (
     <div className="relative min-h-screen bg-night-bg flex flex-col items-center justify-center overflow-hidden">
+      {/* Leave button */}
+      <div className="absolute top-6 left-6 z-20">
+        <button
+          onClick={() => setShowLeaveConfirm(true)}
+          className="text-slate-500 hover:text-red-400 text-sm flex items-center gap-1.5 transition-colors"
+        >
+          ← Leave Game
+        </button>
+      </div>
+
       {/* Dark vignette */}
       <div className="absolute inset-0 bg-gradient-radial from-transparent via-transparent to-black/80 pointer-events-none" />
 
@@ -82,6 +105,35 @@ export default function NightRevealPage() {
 
         <p className="text-slate-600 text-xs mt-8 animate-pulse">Day begins shortly...</p>
       </div>
+
+      {/* Leave Room Confirmation Dialog */}
+      {showLeaveConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-night-card border border-night-border rounded-2xl p-8 max-w-sm w-full mx-4 text-center shadow-2xl animate-float-up">
+            <div className="text-5xl mb-4">🚪</div>
+            <h2 className="text-xl font-display text-white mb-2">Leave Game?</h2>
+            <p className="text-slate-400 text-sm mb-6">
+              {isHost
+                ? 'You are the host. Leaving may disrupt the game for other players.'
+                : 'You will leave the game and return to the main lobby.'}
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowLeaveConfirm(false)}
+                className="flex-1 py-3 rounded-xl border border-night-border text-slate-300 hover:bg-night-surface transition-colors text-sm font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleLeave}
+                className="flex-1 py-3 rounded-xl bg-red-700 hover:bg-red-600 text-white transition-colors text-sm font-semibold"
+              >
+                Yes, Leave
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

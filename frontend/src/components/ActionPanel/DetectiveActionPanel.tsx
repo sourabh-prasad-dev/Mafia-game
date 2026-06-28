@@ -25,7 +25,8 @@ export default function DetectiveActionPanel({ alivePlayers, onSubmit, submitted
         id="detectiveTarget"
         value={selected}
         onChange={e => setSelected(e.target.value)}
-        className="w-full bg-blue-950/80 border border-blue-700/50 text-white rounded-xl px-4 py-3 text-sm mb-4 focus:outline-none focus:border-blue-500 appearance-none"
+        disabled={submitted}
+        className="w-full bg-blue-950/80 border border-blue-700/50 text-white rounded-xl px-4 py-3 text-sm mb-4 focus:outline-none focus:border-blue-500 appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <option value="">— Select player to investigate —</option>
         {alivePlayers.map(p => (

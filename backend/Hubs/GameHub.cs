@@ -288,6 +288,12 @@ public class GameHub : Hub
 
         if (!valid) { await Clients.Caller.SendAsync("Error", "Action not allowed for your role"); return; }
 
+        if (caller.HasSubmittedAction && caller.Role != PlayerRole.Mafia)
+        {
+            await Clients.Caller.SendAsync("Error", "You have already submitted your action this round");
+            return;
+        }
+
         if (targetPlayerId != null)
         {
             var target = room.Players.FirstOrDefault(p => p.PlayerId == targetPlayerId);
